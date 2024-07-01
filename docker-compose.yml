@@ -1,0 +1,71 @@
+networks:
+  frontend:
+    name: frontend
+    driver: bridge
+  backend:
+    name: backend
+    driver: bridge
+services:
+  paperless-ngx:
+    container_name: paperless
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    restart: unless-stopped
+    networks:
+      - frontend
+      - backend
+    ports:
+      - 8080:8000
+    depends_on:
+      - paperless-redis
+      - paperless-postgres
+    volumes:
+      - $DOCKERDIR/paperless/paperless/data:/usr/src
+      - $DOCKERDIR/paperless/paperless/media:/usr/src
+      - $DOCKERDIR/paperless/paperless/export:/usr/src
+      - $DOCKERDIR/paperless/paperless/consume:/usr/src
+    env_file:
+      - stack.env
+    environment:
+      USERMAP_ID: $PUID
+      USERMAP_GID: $PGID
+      PAPERLESS_TIME_ZONE: $TZ
+      PAPERLESS_OCR_LANGUAGE: eng
+      PAPERLESS_ENABLE_UPDATE_CHECK: "true"
+      PAPERLESS_REDIS: redis://paperless-redis:6379
+      PAPERLESS_DBHOST: paperless-postgres
+      PAPERLESS_DBNAME: $DBNAME
+      PAPERLESS_DBUSER: $DBUSERNAME
+      PAPERLESS_DBPASS_FILE: /run/secrets/paperless_db_paperless_passwd
+      PAPERLESS_DBPASS: $PAPERLESS_DBPASS
+      PAPERLESS_SECRET_KEY: $PAPERLESS_SECRET_KEY
+      PAPERLESS_FILENAME_FORMAT: "{created_year}/{correspondent}/{created} {title}"
+      PAPERLESS_URL: "192.168.1.30"
+      PAPERLESS_ALLOWED_HOSTS: $PAPERLESS_URL 
+      PAPERLESS_ADMIN_USER: "root" # only needed on first run
+      PAPERLESS_ADMIN_PASSWORD: "eternity" # only needed on first run paperless-postgres:
+  paperless-postgres:
+    container_name: paperless-postgres
+    image: postgres:16.0-alpine
+    restart: unless-stopped
+    networks:
+      - backend
+    volumes:
+      - $DOCKERDIR/paperless/postgres:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: $DBUSERNAME
+      POSTGRES_DB: $DBNAME
+      POSTGRES_PASSWORD: $POSTGRESPW
+    env_file:
+      - stack.env
+  paperless-redis:
+    container_name: paperless-redis
+    image: redis:7.2-alpine
+    restart: unless-stopped
+    networks:
+      - backend
+    volumes:
+      - $DOCKERDIR/paperless/redis:data
+    environment:
+      REDIS_ARGS: "--save 60 10"
+    env_file:
+      - stack.env
